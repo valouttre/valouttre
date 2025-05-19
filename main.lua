@@ -2,13 +2,16 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 
+-- Variables état
 local flying = false
 local noclip = false
 local fogOff = false
 local showPlayers = false
+local showFruits = false
 
 local flySpeed = 500
 local acceleration = 30
@@ -16,7 +19,7 @@ local deceleration = 40
 
 local velocityVector = Vector3.new(0, 0, 0)
 
--- Sauvegarde de l’éclairage original
+-- Sauvegarde éclairage original
 local originalFogStart = Lighting.FogStart
 local originalFogEnd = Lighting.FogEnd
 local originalFogColor = Lighting.FogColor
@@ -114,6 +117,22 @@ local function removeHighlightAndBillboard(plr)
     if billboard then billboard:Destroy() end
 end
 
+-- Highlight pour fruits
+local function applyFruitHighlight(fruit)
+    if fruit:FindFirstChild("FruitHighlight") then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FruitHighlight"
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = fruit
+end
+
+local function removeFruitHighlight(fruit)
+    local highlight = fruit:FindFirstChild("FruitHighlight")
+    if highlight then highlight:Destroy() end
+end
+
 -- UI Création
 
 local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -121,13 +140,13 @@ screenGui.Name = "FlyNoclipFogUI"
 screenGui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 230, 0, 320) -- hauteur augmentée pour la textbox
+frame.Size = UDim2.new(0, 230, 0, 360)
 frame.Position = UDim2.new(0, 15, 0, 15)
 frame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-frame.ClipsDescendants = false -- très important pour ne pas couper textbox
+frame.ClipsDescendants = false
 frame.AnchorPoint = Vector2.new(0, 0)
 frame.Name = "MainFrame"
 frame.ZIndex = 10
@@ -165,11 +184,12 @@ local btnFly = createButton(frame, 10, "Activer Fly", Color3.fromRGB(50, 220, 90
 local btnNoclip = createButton(frame, 65, "Activer Noclip", Color3.fromRGB(50, 140, 220), Color3.fromRGB(255, 255, 255))
 local btnFog = createButton(frame, 120, "Enlever Brouillard", Color3.fromRGB(220, 220, 70), Color3.fromRGB(0, 0, 0))
 local btnShowPlayers = createButton(frame, 175, "Afficher Joueurs", Color3.fromRGB(220, 70, 70), Color3.fromRGB(255, 255, 255))
+local btnShowFruits = createButton(frame, 230, "Afficher Fruits", Color3.fromRGB(150, 50, 220), Color3.fromRGB(255, 255, 255))
 
 -- Label vitesse fly (juste affichage)
 local speedLabel = Instance.new("TextLabel", frame)
 speedLabel.Size = UDim2.new(0.9, 0, 0, 30)
-speedLabel.Position = UDim2.new(0.05, 0, 0, 230)
+speedLabel.Position = UDim2.new(0.05, 0, 0, 285)
 speedLabel.BackgroundTransparency = 1
 speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedLabel.Font = Enum.Font.GothamBold
@@ -179,219 +199,253 @@ speedLabel.ZIndex = 15
 
 -- TextBox pour modifier la vitesse fly
 local speedInput = Instance.new("TextBox", frame)
-speedInput.Size = UDim2.new(0.9, 0, 0, 30)
-speedInput.Position = UDim2.new(0.05, 0, 0, 265)
-speedInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+speedInput.Size = UDim2.new(0.9, 0, 0, 35)
+speedInput.Position = UDim2.new(0.05, 0, 0, 320)
+speedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedInput.Font = Enum.Font.GothamBold
 speedInput.TextSize = 18
-speedInput.PlaceholderText = "Entrer vitesse Fly (ex: 500)"
-speedInput.Text = tostring(flySpeed)
 speedInput.ClearTextOnFocus = false
-speedInput.ZIndex = 20
+speedInput.Text = tostring(flySpeed)
+speedInput.ZIndex = 15
+speedInput.PlaceholderText = "Entrez vitesse fly (ex: 500)"
 
 speedInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local val = tonumber(speedInput.Text)
-        if val and val > 0 then
+        if val and val > 0 and val <= 5000 then
             flySpeed = val
             speedLabel.Text = "Vitesse Fly: " .. flySpeed
         else
-            speedInput.Text = tostring(flySpeed) -- reset si invalide
+            speedInput.Text = tostring(flySpeed)
         end
     end
 end)
 
--- Fonction Fly + Noclip
+-- Fonction vol
 
-local bodyVelocity = nil
-local runConnection = nil
-
-local function enableFly()
-    if flying then return end
-    flying = true
-    local character = player.Character
-    if not character then return end
-    local hrp = character:FindFirstChild("HumanoidRootPart")
+local function flyUpdate(dt)
+    if not flying then return end
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-    bodyVelocity.Parent = hrp
+    local moveVector = Vector3.new()
 
-    local function updateVelocity()
-        if not flying then return end
-        local moveDirection = Vector3.new(0, 0, 0)
-
-        if UIS:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection = moveDirection + Vector3.new(0, 1, 0)
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDirection = moveDirection - Vector3.new(0, 1, 0)
-        end
-
-        if moveDirection.Magnitude > 0 then
-            velocityVector = velocityVector:Lerp(moveDirection.Unit * flySpeed, acceleration * RunService.RenderStepped:Wait())
-        else
-            velocityVector = velocityVector:Lerp(Vector3.new(0, 0, 0), deceleration * RunService.RenderStepped:Wait())
-        end
-
-        bodyVelocity.Velocity = velocityVector
+    if UIS:IsKeyDown(Enum.KeyCode.W) then
+        moveVector = moveVector + hrp.CFrame.LookVector
+    end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then
+        moveVector = moveVector - hrp.CFrame.LookVector
+    end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then
+        moveVector = moveVector - hrp.CFrame.RightVector
+    end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then
+        moveVector = moveVector + hrp.CFrame.RightVector
+    end
+    if UIS:IsKeyDown(Enum.KeyCode.Space) then
+        moveVector = moveVector + Vector3.new(0,1,0)
+    end
+    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+        moveVector = moveVector - Vector3.new(0,1,0)
     end
 
-    runConnection = RunService.RenderStepped:Connect(updateVelocity)
-end
-
-local function disableFly()
-    flying = false
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-    if runConnection then
-        runConnection:Disconnect()
-        runConnection = nil
-    end
-    velocityVector = Vector3.new(0, 0, 0)
-end
-
-local function toggleFly()
-    if flying then
-        disableFly()
-        btnFly.Text = "Activer Fly"
-        btnFly.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
+    if moveVector.Magnitude > 0 then
+        velocityVector = velocityVector + moveVector.Unit * acceleration
+        if velocityVector.Magnitude > flySpeed then
+            velocityVector = velocityVector.Unit * flySpeed
+        end
     else
-        enableFly()
-        btnFly.Text = "Désactiver Fly"
-        btnFly.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        -- freiner la vitesse
+        if velocityVector.Magnitude > 0 then
+            velocityVector = velocityVector - velocityVector.Unit * deceleration
+            if velocityVector.Magnitude < 0 then velocityVector = Vector3.new(0,0,0) end
+        end
     end
-end
 
-btnFly.MouseButton1Click:Connect(toggleFly)
+    hrp.Velocity = velocityVector
+end
 
 -- Noclip
 
-local function noclipLoop()
+local function noclipUpdate()
     if not noclip then return end
-    local character = player.Character
-    if not character then return end
-    for _, part in pairs(character:GetChildren()) do
+    local char = player.Character
+    if not char then return end
+
+    for _, part in pairs(char:GetChildren()) do
         if part:IsA("BasePart") and part.CanCollide == true then
             part.CanCollide = false
         end
     end
 end
 
-local noclipConnection = nil
+-- Toggle functions & buttons
 
-local function enableNoclip()
-    if noclip then return end
-    noclip = true
-    noclipConnection = RunService.Stepped:Connect(noclipLoop)
-end
-
-local function disableNoclip()
-    noclip = false
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-    local character = player.Character
-    if not character then return end
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-        end
-    end
-end
-
-local function toggleNoclip()
-    if noclip then
-        disableNoclip()
-        btnNoclip.Text = "Activer Noclip"
-        btnNoclip.BackgroundColor3 = Color3.fromRGB(50, 140, 220)
+btnFly.MouseButton1Click:Connect(function()
+    flying = not flying
+    if flying then
+        btnFly.Text = "Désactiver Fly"
+        btnFly.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
     else
-        enableNoclip()
-        btnNoclip.Text = "Désactiver Noclip"
-        btnNoclip.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-    end
-end
-
-btnNoclip.MouseButton1Click:Connect(toggleNoclip)
-
--- Fog toggle
-
-local function toggleFog()
-    if fogOff then
-        restoreOriginalLighting()
-        clearFogEffects()
-        fogOff = false
-        btnFog.Text = "Enlever Brouillard"
-        btnFog.BackgroundColor3 = Color3.fromRGB(220, 220, 70)
-    else
-        applyNoFogSettings()
-        fogOff = true
-        btnFog.Text = "Remettre Brouillard"
-        btnFog.BackgroundColor3 = Color3.fromRGB(180, 180, 30)
-    end
-end
-
-btnFog.MouseButton1Click:Connect(toggleFog)
-
--- Show players toggle
-
-local function toggleShowPlayers()
-    if showPlayers then
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player then
-                removeHighlightAndBillboard(plr)
+        btnFly.Text = "Activer Fly"
+        btnFly.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
+        local char = player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Velocity = Vector3.new(0,0,0)
             end
         end
-        showPlayers = false
-        btnShowPlayers.Text = "Afficher Joueurs"
-        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+    end
+end)
+
+btnNoclip.MouseButton1Click:Connect(function()
+    noclip = not noclip
+    if noclip then
+        btnNoclip.Text = "Désactiver Noclip"
+        btnNoclip.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
     else
+        btnNoclip.Text = "Activer Noclip"
+        btnNoclip.BackgroundColor3 = Color3.fromRGB(50, 140, 220)
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+btnFog.MouseButton1Click:Connect(function()
+    fogOff = not fogOff
+    if fogOff then
+        btnFog.Text = "Restaurer Brouillard"
+        btnFog.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        applyNoFogSettings()
+        clearFogEffects()
+    else
+        btnFog.Text = "Enlever Brouillard"
+        btnFog.BackgroundColor3 = Color3.fromRGB(220, 220, 70)
+        restoreOriginalLighting()
+    end
+end)
+
+btnShowPlayers.MouseButton1Click:Connect(function()
+    showPlayers = not showPlayers
+
+    if showPlayers then
+        btnShowPlayers.Text = "Cacher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player then
                 applyHighlightAndBillboard(plr)
             end
         end
-        showPlayers = true
-        btnShowPlayers.Text = "Cacher Joueurs"
-        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-    end
-end
-
-btnShowPlayers.MouseButton1Click:Connect(toggleShowPlayers)
-
--- Nettoyage lors du respawn
-player.CharacterAdded:Connect(function()
-    if flying then disableFly() end
-    if noclip then disableNoclip() end
-    if fogOff then
-        restoreOriginalLighting()
-        fogOff = false
-    end
-    if showPlayers then
+    else
+        btnShowPlayers.Text = "Afficher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
         for _, plr in pairs(Players:GetPlayers()) do
             removeHighlightAndBillboard(plr)
         end
-        showPlayers = false
     end
 end)
+
+-- ESP Fruits
+
+local fruitHighlights = {}
+
+local function applyFruitESP(fruit)
+    if fruitHighlights[fruit] then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FruitHighlight"
+    highlight.FillColor = Color3.fromRGB(0, 255, 255)
+    highlight.OutlineColor = Color3.fromRGB(0, 200, 200)
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = fruit
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "FruitBillboard"
+    billboard.Adornee = fruit
+    billboard.Size = UDim2.new(0, 100, 0, 30)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = fruit
+
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextSize = 18
+    textLabel.Text = fruit.Name or "Fruit"
+    textLabel.TextWrapped = true
+
+    fruitHighlights[fruit] = {highlight = highlight, billboard = billboard}
+end
+
+local function removeFruitESP(fruit)
+    if fruitHighlights[fruit] then
+        if fruitHighlights[fruit].highlight then
+            fruitHighlights[fruit].highlight:Destroy()
+        end
+        if fruitHighlights[fruit].billboard then
+            fruitHighlights[fruit].billboard:Destroy()
+        end
+        fruitHighlights[fruit] = nil
+    end
+end
+
+local function clearAllFruitESP()
+    for fruit, _ in pairs(fruitHighlights) do
+        removeFruitESP(fruit)
+    end
+end
+
+btnShowFruits.MouseButton1Click:Connect(function()
+    showFruits = not showFruits
+
+    if showFruits then
+        btnShowFruits.Text = "Cacher Fruits"
+        btnShowFruits.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        for _, fruit in pairs(Workspace:GetChildren()) do
+            if fruit:IsA("BasePart") and string.find(fruit.Name:lower(), "fruit") then
+                applyFruitESP(fruit)
+            end
+        end
+    else
+        btnShowFruits.Text = "Afficher Fruits"
+        btnShowFruits.BackgroundColor3 = Color3.fromRGB(150, 50, 220)
+        clearAllFruitESP()
+    end
+end)
+
+Workspace.ChildAdded:Connect(function(child)
+    if showFruits and child:IsA("BasePart") and string.find(child.Name:lower(), "fruit") then
+        applyFruitESP(child)
+    end
+end)
+
+Workspace.ChildRemoved:Connect(function(child)
+    if child:IsA("BasePart") and fruitHighlights[child] then
+        removeFruitESP(child)
+    end
+end)
+
+-- Run loops
+
+RunService.Heartbeat:Connect(function(dt)
+    flyUpdate(dt)
+    noclipUpdate()
+end)
+
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
