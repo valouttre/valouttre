@@ -451,24 +451,19 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
-
 local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
 
--- Variables état
+-- Variables
 local flying = false
-local noclip = false
-local fogOff = false
-local showPlayers = false
-local showFruits = false
 local taxiActive = false
-local taxiTargetPos = nil
 local flySpeed = 500
+local velocityVector = Vector3.zero
 local acceleration = 30
-local deceleration = 40
-local velocityVector = Vector3.new(0, 0, 0)
+local currentDestinationName = nil
 
--- Coordonnées taxi
+-- Destinations
 local taxiDestinations = {
     {name = "café", pos = Vector3.new(-384.1, 73.1, 339.0)},
     {name = "royaume de rosse", pos = Vector3.new(-12.2, 29.3, 2770.0)},
@@ -484,221 +479,129 @@ local taxiDestinations = {
     {name = "chateau iverballe", pos = Vector3.new(5652.7, 28.4, -6371.2)},
 }
 
--- UI Création (partie taxi)
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-screenGui.Name = "FlyNoclipTaxiUI"
-screenGui.ResetOnSpawn = false
+-- UI
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "TaxiUI"
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 260, 0, 350)
+frame.Position = UDim2.new(0, 30, 0, 50)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.Active = true
+frame.Draggable = true
+frame.BorderSizePixel = 0
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
-local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Size = UDim2.new(0, 250, 0, 400)
-mainFrame.Position = UDim2.new(0, 15, 0, 15)
-mainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Name = "MainFrame"
+local label = Instance.new("TextLabel", frame)
+label.Size = UDim2.new(1, 0, 0, 30)
+label.Text = "🚁 Menu Taxi Fly"
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.Font = Enum.Font.GothamBold
+label.TextSize = 20
 
-local uicornerFrame = Instance.new("UICorner", mainFrame)
-uicornerFrame.CornerRadius = UDim.new(0, 14)
-
--- Bouton pour activer/désactiver fly
-local btnFly = Instance.new("TextButton", mainFrame)
-btnFly.Size = UDim2.new(0.9, 0, 0, 40)
-btnFly.Position = UDim2.new(0.05, 0, 0, 10)
-btnFly.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
-btnFly.TextColor3 = Color3.new(1, 1, 1)
-btnFly.Font = Enum.Font.GothamBold
-btnFly.TextSize = 20
-btnFly.Text = "Activer Fly"
-btnFly.AutoButtonColor = false
-local uicornerFly = Instance.new("UICorner", btnFly)
-uicornerFly.CornerRadius = UDim.new(0, 18)
-
--- Bouton pour activer/désactiver noclip
-local btnNoclip = Instance.new("TextButton", mainFrame)
-btnNoclip.Size = UDim2.new(0.9, 0, 0, 40)
-btnNoclip.Position = UDim2.new(0.05, 0, 0, 60)
-btnNoclip.BackgroundColor3 = Color3.fromRGB(50, 140, 220)
-btnNoclip.TextColor3 = Color3.new(1, 1, 1)
-btnNoclip.Font = Enum.Font.GothamBold
-btnNoclip.TextSize = 20
-btnNoclip.Text = "Activer Noclip"
-btnNoclip.AutoButtonColor = false
-local uicornerNoclip = Instance.new("UICorner", btnNoclip)
-uicornerNoclip.CornerRadius = UDim.new(0, 18)
-
--- Label vitesse fly
-local speedLabel = Instance.new("TextLabel", mainFrame)
-speedLabel.Size = UDim2.new(0.9, 0, 0, 25)
-speedLabel.Position = UDim2.new(0.05, 0, 0, 110)
-speedLabel.BackgroundTransparency = 1
-speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedLabel.Font = Enum.Font.GothamBold
-speedLabel.TextSize = 18
-speedLabel.Text = "Vitesse Fly : "..flySpeed
-
--- TextBox pour changer la vitesse fly
-local speedInput = Instance.new("TextBox", mainFrame)
-speedInput.Size = UDim2.new(0.9, 0, 0, 30)
-speedInput.Position = UDim2.new(0.05, 0, 0, 140)
-speedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedInput.Font = Enum.Font.GothamBold
-speedInput.TextSize = 18
-speedInput.Text = tostring(flySpeed)
-speedInput.ClearTextOnFocus = false
-speedInput.PlaceholderText = "Vitesse fly max (ex: 500)"
-
--- Bouton pour ouvrir menu taxi
-local btnTaxiMenu = Instance.new("TextButton", mainFrame)
-btnTaxiMenu.Size = UDim2.new(0.9, 0, 0, 40)
-btnTaxiMenu.Position = UDim2.new(0.05, 0, 0, 185)
-btnTaxiMenu.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-btnTaxiMenu.TextColor3 = Color3.new(1, 1, 1)
-btnTaxiMenu.Font = Enum.Font.GothamBold
-btnTaxiMenu.TextSize = 20
-btnTaxiMenu.Text = "Ouvrir Taxi"
-btnTaxiMenu.AutoButtonColor = false
-local uicornerTaxi = Instance.new("UICorner", btnTaxiMenu)
-uicornerTaxi.CornerRadius = UDim.new(0, 18)
-
--- Frame pour liste destinations (cachée au départ)
-local taxiFrame = Instance.new("Frame", mainFrame)
-taxiFrame.Size = UDim2.new(0.9, 0, 0, 200)
-taxiFrame.Position = UDim2.new(0.05, 0, 0, 235)
-taxiFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-taxiFrame.Visible = false
-local uicornerTaxiFrame = Instance.new("UICorner", taxiFrame)
-uicornerTaxiFrame.CornerRadius = UDim.new(0, 12)
-
--- ScrollingFrame pour liste des boutons taxi
-local scrolling = Instance.new("ScrollingFrame", taxiFrame)
-scrolling.Size = UDim2.new(1, -10, 1, -10)
-scrolling.Position = UDim2.new(0, 5, 0, 5)
+local scrolling = Instance.new("ScrollingFrame", frame)
+scrolling.Position = UDim2.new(0, 10, 0, 40)
+scrolling.Size = UDim2.new(1, -20, 1, -90)
 scrolling.CanvasSize = UDim2.new(0, 0, 0, #taxiDestinations * 45)
-scrolling.BackgroundTransparency = 1
 scrolling.ScrollBarThickness = 6
+scrolling.BackgroundTransparency = 1
 
--- Création boutons destinations
+local speedBox = Instance.new("TextBox", frame)
+speedBox.Position = UDim2.new(0, 10, 1, -40)
+speedBox.Size = UDim2.new(1, -20, 0, 30)
+speedBox.PlaceholderText = "Vitesse (ex: 500)"
+speedBox.Text = tostring(flySpeed)
+speedBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+speedBox.TextColor3 = Color3.new(1, 1, 1)
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 16
+Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0, 6)
+
+-- Noclip
+local function enableNoclip()
+    if not character then return end
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
+-- Fly Cancel
+local function cancelFly()
+    RunService:UnbindFromRenderStep("TaxiFly")
+    if hrp then hrp.Velocity = Vector3.zero end
+    velocityVector = Vector3.zero
+    flying = false
+    taxiActive = false
+    currentDestinationName = nil
+end
+
+-- Fly to destination
+local function flyTo(destination)
+    RunService:BindToRenderStep("TaxiFly", Enum.RenderPriority.Character.Value + 1, function(dt)
+        if flying and taxiActive and character and hrp then
+            local direction = destination - hrp.Position
+            local dist = direction.Magnitude
+
+            if dist < 5 then
+                hrp.CFrame = CFrame.new(destination)
+                hrp.Velocity = Vector3.zero
+                cancelFly()
+                return
+            end
+
+            enableNoclip()
+            local moveDir = direction.Unit
+            velocityVector = velocityVector:Lerp(moveDir * flySpeed, acceleration * dt)
+            hrp.Velocity = velocityVector
+            hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + moveDir)
+        end
+    end)
+end
+
+-- Create destination buttons
 for i, dest in ipairs(taxiDestinations) do
     local btn = Instance.new("TextButton", scrolling)
     btn.Size = UDim2.new(1, 0, 0, 40)
-    btn.Position = UDim2.new(0, 0, 0, (i-1)*45)
+    btn.Position = UDim2.new(0, 0, 0, (i - 1) * 45)
     btn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
-    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextColor3 = Color3.new(1, 1, 1)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 18
     btn.Text = dest.name
-    btn.AutoButtonColor = false
-    local uicorner = Instance.new("UICorner", btn)
-    uicorner.CornerRadius = UDim.new(0, 12)
-
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
-    end)
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = Color3.fromRGB(255, 140, 0)
-    end)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     btn.MouseButton1Click:Connect(function()
-        taxiTargetPos = dest.pos
+        character = player.Character or player.CharacterAdded:Wait()
+        hrp = character:WaitForChild("HumanoidRootPart")
+
+        if currentDestinationName == dest.name then
+            cancelFly()
+            return
+        end
+
+        local inputSpeed = tonumber(speedBox.Text)
+        if inputSpeed then flySpeed = inputSpeed end
+
+        cancelFly()
+        currentDestinationName = dest.name
+        flying = true
         taxiActive = true
-        taxiFrame.Visible = false
+        velocityVector = Vector3.zero
+        flyTo(dest.pos)
     end)
 end
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Dollar then -- $ = Shift + 4 sur la plupart des claviers FR
+		local playerGui = player:FindFirstChild("PlayerGui")
+		if not playerGui then return end
 
--- Toggle taxi menu
-btnTaxiMenu.MouseButton1Click:Connect(function()
-    taxiFrame.Visible = not taxiFrame.Visible
+		for _, gui in pairs(playerGui:GetChildren()) do
+			if gui:IsA("ScreenGui") then
+				gui.Enabled = not gui.Enabled
+			end
+		end
+	end
 end)
-
--- Toggle fly
-btnFly.MouseButton1Click:Connect(function()
-    flying = not flying
-    btnFly.Text = flying and "Désactiver Fly" or "Activer Fly"
-end)
-
--- Toggle noclip
-btnNoclip.MouseButton1Click:Connect(function()
-    noclip = not noclip
-    btnNoclip.Text = noclip and "Désactiver Noclip" or "Activer Noclip"
-end)
-
--- Modifier vitesse fly
-speedInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local val = tonumber(speedInput.Text)
-        if val and val > 0 and val <= 1000 then
-            flySpeed = val
-            speedLabel.Text = "Vitesse Fly : "..flySpeed
-        else
-            speedInput.Text = tostring(flySpeed)
-        end
-    end
-end)
-
--- Fonction noclip
-local function setNoclip(state)
-    if state then
-        RunService.Stepped:Connect(function()
-            for _, part in pairs(player.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end)
-    end
-end
-
--- Mouvements fly
-RunService.RenderStepped:Connect(function(dt)
-    if flying then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            -- Mouvement automatique taxi
-            if taxiActive and taxiTargetPos then
-                local direction = (taxiTargetPos - hrp.Position)
-                local dist = direction.Magnitude
-                if dist < 5 then
-                    taxiActive = false
-                    velocityVector = Vector3.new(0,0,0)
-                else
-                    local dirNorm = direction.Unit
-                    -- Accélération progressive
-                    velocityVector = velocityVector:Lerp(dirNorm * flySpeed, acceleration * dt)
-                    hrp.CFrame = hrp.CFrame + velocityVector * dt
-                end
-            else
-                -- Mouvement manuel au clavier (WASD + Up/Down)
-                local moveDir = Vector3.new()
-                if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + hrp.CFrame.LookVector end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - hrp.CFrame.LookVector end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - hrp.CFrame.RightVector end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + hrp.CFrame.RightVector end
-                if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0,1,0) end
-                if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0,1,0) end
-
-                if moveDir.Magnitude > 0 then
-                    moveDir = moveDir.Unit
-                    velocityVector = velocityVector:Lerp(moveDir * flySpeed, acceleration * dt)
-                else
-                    velocityVector = velocityVector:Lerp(Vector3.new(0,0,0), deceleration * dt)
-                end
-                hrp.CFrame = hrp.CFrame + velocityVector * dt
-            end
-        end
-    else
-        taxiActive = false
-        velocityVector = Vector3.new(0,0,0)
-    end
-
-    -- Noclip
-    if noclip and player.Character then
-        for _, part in pairs(player.Character:GetChildren()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end
-end)
-    
