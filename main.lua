@@ -2,24 +2,21 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 
--- Variables état
+-- States
 local flying = false
 local noclip = false
 local fogOff = false
 local showPlayers = false
-local showFruits = false
 
 local flySpeed = 500
 local acceleration = 30
 local deceleration = 40
-
 local velocityVector = Vector3.new(0, 0, 0)
 
--- Sauvegarde éclairage original
+-- Save original lighting settings to restore later
 local originalFogStart = Lighting.FogStart
 local originalFogEnd = Lighting.FogEnd
 local originalFogColor = Lighting.FogColor
@@ -32,6 +29,7 @@ local originalExposure = Lighting.ExposureCompensation
 local originalOutdoorAmbient = Lighting.OutdoorAmbient
 local originalGlobalShadows = Lighting.GlobalShadows
 
+-- Remove Blur/Bloom/SunRays/Sky effects that could mess with fog removal
 local function clearFogEffects()
     for _, effect in pairs(Lighting:GetChildren()) do
         if effect:IsA("BlurEffect") or effect:IsA("BloomEffect") or effect:IsA("SunRaysEffect") or effect:IsA("Sky") then
@@ -41,16 +39,17 @@ local function clearFogEffects()
 end
 
 local function applyNoFogSettings()
+    clearFogEffects()
     Lighting.FogStart = 0
     Lighting.FogEnd = 100000
-    Lighting.FogColor = Color3.fromRGB(255, 255, 255)
-    Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+    Lighting.FogColor = Color3.new(1, 1, 1)
+    Lighting.Ambient = Color3.new(1, 1, 1)
     Lighting.Brightness = 1
     Lighting.ClockTime = 14
-    Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
-    Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+    Lighting.ColorShift_Bottom = Color3.new(1, 1, 1)
+    Lighting.ColorShift_Top = Color3.new(1, 1, 1)
     Lighting.ExposureCompensation = 0
-    Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
     Lighting.GlobalShadows = true
 end
 
@@ -68,12 +67,13 @@ local function restoreOriginalLighting()
     Lighting.GlobalShadows = originalGlobalShadows
 end
 
--- Highlight + Billboard pour joueurs
+-- Add highlight + nameplate to players
 local function applyHighlightAndBillboard(plr)
     if not plr.Character then return end
     local char = plr.Character
     if char:FindFirstChild("RedHighlight") then return end
 
+    -- Highlight
     local highlight = Instance.new("Highlight")
     highlight.Name = "RedHighlight"
     highlight.FillColor = Color3.fromRGB(255, 0, 0)
@@ -81,12 +81,12 @@ local function applyHighlightAndBillboard(plr)
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = char
 
+    -- BillboardGui for name
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local head = char:FindFirstChild("Head")
     if not hrp and not head then return end
 
     local attachPoint = head or hrp
-
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "PlayerNameBillboard"
     billboard.Adornee = attachPoint
@@ -117,40 +117,22 @@ local function removeHighlightAndBillboard(plr)
     if billboard then billboard:Destroy() end
 end
 
--- Highlight pour fruits
-local function applyFruitHighlight(fruit)
-    if fruit:FindFirstChild("FruitHighlight") then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "FruitHighlight"
-    highlight.FillColor = Color3.fromRGB(255, 0, 0)
-    highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = fruit
-end
-
-local function removeFruitHighlight(fruit)
-    local highlight = fruit:FindFirstChild("FruitHighlight")
-    if highlight then highlight:Destroy() end
-end
-
--- UI Création
-
-local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+-- UI Creation
+local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FlyNoclipFogUI"
 screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 230, 0, 360)
+frame.Size = UDim2.new(0, 230, 0, 320)
 frame.Position = UDim2.new(0, 15, 0, 15)
 frame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.ClipsDescendants = false
-frame.AnchorPoint = Vector2.new(0, 0)
 frame.Name = "MainFrame"
 frame.ZIndex = 10
-frame.AutomaticSize = Enum.AutomaticSize.None
 
 local uicornerFrame = Instance.new("UICorner", frame)
 uicornerFrame.CornerRadius = UDim.new(0, 14)
@@ -184,12 +166,11 @@ local btnFly = createButton(frame, 10, "Activer Fly", Color3.fromRGB(50, 220, 90
 local btnNoclip = createButton(frame, 65, "Activer Noclip", Color3.fromRGB(50, 140, 220), Color3.fromRGB(255, 255, 255))
 local btnFog = createButton(frame, 120, "Enlever Brouillard", Color3.fromRGB(220, 220, 70), Color3.fromRGB(0, 0, 0))
 local btnShowPlayers = createButton(frame, 175, "Afficher Joueurs", Color3.fromRGB(220, 70, 70), Color3.fromRGB(255, 255, 255))
-local btnShowFruits = createButton(frame, 230, "Afficher Fruits", Color3.fromRGB(150, 50, 220), Color3.fromRGB(255, 255, 255))
 
--- Label vitesse fly (juste affichage)
+-- Speed label
 local speedLabel = Instance.new("TextLabel", frame)
 speedLabel.Size = UDim2.new(0.9, 0, 0, 30)
-speedLabel.Position = UDim2.new(0.05, 0, 0, 285)
+speedLabel.Position = UDim2.new(0.05, 0, 0, 230)
 speedLabel.BackgroundTransparency = 1
 speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedLabel.Font = Enum.Font.GothamBold
@@ -197,10 +178,10 @@ speedLabel.TextSize = 18
 speedLabel.Text = "Vitesse Fly: " .. flySpeed
 speedLabel.ZIndex = 15
 
--- TextBox pour modifier la vitesse fly
+-- Speed input box
 local speedInput = Instance.new("TextBox", frame)
 speedInput.Size = UDim2.new(0.9, 0, 0, 35)
-speedInput.Position = UDim2.new(0.05, 0, 0, 320)
+speedInput.Position = UDim2.new(0.05, 0, 0, 265)
 speedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedInput.Font = Enum.Font.GothamBold
@@ -222,67 +203,7 @@ speedInput.FocusLost:Connect(function(enterPressed)
     end
 end)
 
--- Fonction vol
-
-local function flyUpdate(dt)
-    if not flying then return end
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local moveVector = Vector3.new()
-
-    if UIS:IsKeyDown(Enum.KeyCode.W) then
-        moveVector = moveVector + hrp.CFrame.LookVector
-    end
-    if UIS:IsKeyDown(Enum.KeyCode.S) then
-        moveVector = moveVector - hrp.CFrame.LookVector
-    end
-    if UIS:IsKeyDown(Enum.KeyCode.A) then
-        moveVector = moveVector - hrp.CFrame.RightVector
-    end
-    if UIS:IsKeyDown(Enum.KeyCode.D) then
-        moveVector = moveVector + hrp.CFrame.RightVector
-    end
-    if UIS:IsKeyDown(Enum.KeyCode.Space) then
-        moveVector = moveVector + Vector3.new(0,1,0)
-    end
-    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-        moveVector = moveVector - Vector3.new(0,1,0)
-    end
-
-    if moveVector.Magnitude > 0 then
-        velocityVector = velocityVector + moveVector.Unit * acceleration
-        if velocityVector.Magnitude > flySpeed then
-            velocityVector = velocityVector.Unit * flySpeed
-        end
-    else
-        -- freiner la vitesse
-        if velocityVector.Magnitude > 0 then
-            velocityVector = velocityVector - velocityVector.Unit * deceleration
-            if velocityVector.Magnitude < 0 then velocityVector = Vector3.new(0,0,0) end
-        end
-    end
-
-    hrp.Velocity = velocityVector
-end
-
--- Noclip
-
-local function noclipUpdate()
-    if not noclip then return end
-    local char = player.Character
-    if not char then return end
-
-    for _, part in pairs(char:GetChildren()) do
-        if part:IsA("BasePart") and part.CanCollide == true then
-            part.CanCollide = false
-        end
-    end
-end
-
--- Toggle functions & buttons
+-- Button logic
 
 btnFly.MouseButton1Click:Connect(function()
     flying = not flying
@@ -292,13 +213,6 @@ btnFly.MouseButton1Click:Connect(function()
     else
         btnFly.Text = "Activer Fly"
         btnFly.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Velocity = Vector3.new(0,0,0)
-            end
-        end
     end
 end)
 
@@ -310,141 +224,151 @@ btnNoclip.MouseButton1Click:Connect(function()
     else
         btnNoclip.Text = "Activer Noclip"
         btnNoclip.BackgroundColor3 = Color3.fromRGB(50, 140, 220)
-        local char = player.Character
-        if char then
-            for _, part in pairs(char:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-        end
     end
 end)
 
 btnFog.MouseButton1Click:Connect(function()
     fogOff = not fogOff
     if fogOff then
-        btnFog.Text = "Restaurer Brouillard"
-        btnFog.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
         applyNoFogSettings()
-        clearFogEffects()
+        btnFog.Text = "Remettre Brouillard"
+        btnFog.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+        btnFog.TextColor3 = Color3.fromRGB(0, 0, 0)
     else
+        restoreOriginalLighting()
         btnFog.Text = "Enlever Brouillard"
         btnFog.BackgroundColor3 = Color3.fromRGB(220, 220, 70)
-        restoreOriginalLighting()
+        btnFog.TextColor3 = Color3.fromRGB(0, 0, 0)
     end
 end)
 
 btnShowPlayers.MouseButton1Click:Connect(function()
     showPlayers = not showPlayers
-
     if showPlayers then
-        btnShowPlayers.Text = "Cacher Joueurs"
-        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
+        btnShowPlayers.Text = "Masquer Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        -- Appliquer highlight et noms
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player then
                 applyHighlightAndBillboard(plr)
             end
         end
-    else
-        btnShowPlayers.Text = "Afficher Joueurs"
-        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        -- Surveiller les nouveaux joueurs
+        Players.PlayerAdded:Connect(function(plr)
+            if showPlayers and plr ~= player then
+                plr.CharacterAdded:Connect(function()
+                    applyHighlightAndBillboard(plr)
+                end)
+            end
+        end)
+        -- Surveiller quand les personnages apparaissent pour réappliquer
         for _, plr in pairs(Players:GetPlayers()) do
-            removeHighlightAndBillboard(plr)
-        end
-    end
-end)
-
--- ESP Fruits
-
-local fruitHighlights = {}
-
-local function applyFruitESP(fruit)
-    if fruitHighlights[fruit] then return end
-
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "FruitHighlight"
-    highlight.FillColor = Color3.fromRGB(0, 255, 255)
-    highlight.OutlineColor = Color3.fromRGB(0, 200, 200)
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = fruit
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "FruitBillboard"
-    billboard.Adornee = fruit
-    billboard.Size = UDim2.new(0, 100, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = fruit
-
-    local textLabel = Instance.new("TextLabel", billboard)
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextSize = 18
-    textLabel.Text = fruit.Name or "Fruit"
-    textLabel.TextWrapped = true
-
-    fruitHighlights[fruit] = {highlight = highlight, billboard = billboard}
-end
-
-local function removeFruitESP(fruit)
-    if fruitHighlights[fruit] then
-        if fruitHighlights[fruit].highlight then
-            fruitHighlights[fruit].highlight:Destroy()
-        end
-        if fruitHighlights[fruit].billboard then
-            fruitHighlights[fruit].billboard:Destroy()
-        end
-        fruitHighlights[fruit] = nil
-    end
-end
-
-local function clearAllFruitESP()
-    for fruit, _ in pairs(fruitHighlights) do
-        removeFruitESP(fruit)
-    end
-end
-
-btnShowFruits.MouseButton1Click:Connect(function()
-    showFruits = not showFruits
-
-    if showFruits then
-        btnShowFruits.Text = "Cacher Fruits"
-        btnShowFruits.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        for _, fruit in pairs(Workspace:GetChildren()) do
-            if fruit:IsA("BasePart") and string.find(fruit.Name:lower(), "fruit") then
-                applyFruitESP(fruit)
+            if plr ~= player then
+                plr.CharacterAdded:Connect(function()
+                    if showPlayers then
+                        applyHighlightAndBillboard(plr)
+                    end
+                end)
             end
         end
     else
-        btnShowFruits.Text = "Afficher Fruits"
-        btnShowFruits.BackgroundColor3 = Color3.fromRGB(150, 50, 220)
-        clearAllFruitESP()
+        btnShowPlayers.Text = "Afficher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        -- Enlever highlight et noms
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player then
+                removeHighlightAndBillboard(plr)
+            end
+        end
     end
 end)
 
-Workspace.ChildAdded:Connect(function(child)
-    if showFruits and child:IsA("BasePart") and string.find(child.Name:lower(), "fruit") then
-        applyFruitESP(child)
+-- Fly & Noclip mechanic
+
+local function noclipCharacter()
+    if not player.Character then return end
+    for _, part in pairs(player.Character:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+        end
+    end
+end
+
+local function clipCharacter()
+    if not player.Character then return end
+    for _, part in pairs(player.Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+
+-- Fly movement vars
+local moveDir = Vector3.new(0,0,0)
+
+-- Track input for flying
+local function updateMoveDir()
+    local forward = 0
+    local right = 0
+    local up = 0
+
+    if UIS:IsKeyDown(Enum.KeyCode.W) then forward += 1 end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then forward -= 1 end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then right += 1 end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then right -= 1 end
+    if UIS:IsKeyDown(Enum.KeyCode.Space) then up += 1 end
+    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then up -= 1 end
+
+    moveDir = Vector3.new(right, up, forward)
+    if moveDir.Magnitude > 1 then
+        moveDir = moveDir.Unit
+    end
+end
+
+RunService.RenderStepped:Connect(function(dt)
+    -- Noclip
+    if noclip then
+        noclipCharacter()
+    else
+        clipCharacter()
+    end
+
+    -- Fly
+    if flying and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        updateMoveDir()
+        local hrp = player.Character.HumanoidRootPart
+        local camera = workspace.CurrentCamera
+
+        -- Direction relative à la caméra (plus naturel)
+        local camCF = camera.CFrame
+        local rightVec = camCF.RightVector
+        local forwardVec = camCF.LookVector
+        forwardVec = Vector3.new(forwardVec.X, 0, forwardVec.Z).Unit
+
+        local desiredVelocity = (rightVec * moveDir.X + Vector3.new(0, moveDir.Y, 0) + forwardVec * moveDir.Z) * flySpeed
+
+        -- Lissage de la vitesse
+        velocityVector = velocityVector:Lerp(desiredVelocity, dt * acceleration)
+        hrp.Velocity = velocityVector
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0) -- Pas de rotation bizarre
+
+        -- Annule la gravité pour ne pas tomber
+        player.Character.Humanoid.PlatformStand = true
+    else
+        -- Quand on arrête de voler, remettre contrôle normal
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.PlatformStand = false
+        end
     end
 end)
 
-Workspace.ChildRemoved:Connect(function(child)
-    if child:IsA("BasePart") and fruitHighlights[child] then
-        removeFruitESP(child)
+-- Nettoyage quand le script se décharge (genre déconnexion)
+player.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        restoreOriginalLighting()
     end
 end)
 
--- Run loops
-
-RunService.Heartbeat:Connect(function(dt)
-    flyUpdate(dt)
-    noclipUpdate()
-end)
 
 
 local Players = game:GetService("Players")
