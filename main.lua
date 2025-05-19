@@ -357,57 +357,48 @@ end)
 
 -- ESP Fruits
 
-local fruitHighlights = {}
+local fruitsToESP = {
+  "Rocket", "Spin", "Blade", "Spring", "Bomb", "Smoke", "Spike", "Flame", 
+  "Ice", "Sand", "Dark", "Eagle", "Diamond", "Light", "Rubber", "Ghost", 
+  "Magma", "Quake", "Buddha", "Love", "Creation", "Spider", "Sound", "Phoenix", 
+  "Portal", "Rumble", "Pain", "Blizzard", "Gravity", "Mammoth", "T-Rex", 
+  "Dough", "Shadow", "Venom", "Control", "Gas", "Spirit", "Leopard", "Yeti", 
+  "Kitsune", "Dragon"
+}
+btnShowPlayers.MouseButton1Click:Connect(function()
+    showPlayers = not showPlayers
 
-local function applyFruitESP(fruit)
-    if fruitHighlights[fruit] then return end
-
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "FruitHighlight"
-    highlight.FillColor = Color3.fromRGB(0, 255, 255)
-    highlight.OutlineColor = Color3.fromRGB(0, 200, 200)
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Parent = fruit
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "FruitBillboard"
-    billboard.Adornee = fruit
-    billboard.Size = UDim2.new(0, 100, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = fruit
-
-    local textLabel = Instance.new("TextLabel", billboard)
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextSize = 18
-    textLabel.Text = fruit.Name or "Fruit"
-    textLabel.TextWrapped = true
-
-    fruitHighlights[fruit] = {highlight = highlight, billboard = billboard}
-end
-
-local function removeFruitESP(fruit)
-    if fruitHighlights[fruit] then
-        if fruitHighlights[fruit].highlight then
-            fruitHighlights[fruit].highlight:Destroy()
+    if showPlayers then
+        btnShowPlayers.Text = "Cacher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        -- Appliquer highlight à tous les joueurs
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player then
+                applyHighlightAndBillboard(plr)
+            end
         end
-        if fruitHighlights[fruit].billboard then
-            fruitHighlights[fruit].billboard:Destroy()
+        -- Quand un nouveau joueur rejoint, lui appliquer aussi
+        Players.PlayerAdded:Connect(function(plr)
+            if showPlayers and plr ~= player then
+                plr.CharacterAdded:Connect(function()
+                    wait(1) -- attendre que le personnage soit bien chargé
+                    applyHighlightAndBillboard(plr)
+                end)
+            end
+        end)
+        -- Quand un joueur part, nettoyer
+        Players.PlayerRemoving:Connect(function(plr)
+            removeHighlightAndBillboard(plr)
+        end)
+    else
+        btnShowPlayers.Text = "Afficher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        -- Retirer les highlights et billboards de tous
+        for _, plr in pairs(Players:GetPlayers()) do
+            removeHighlightAndBillboard(plr)
         end
-        fruitHighlights[fruit] = nil
     end
-end
-
-local function clearAllFruitESP()
-    for fruit, _ in pairs(fruitHighlights) do
-        removeFruitESP(fruit)
-    end
-end
+end)
 
 btnShowFruits.MouseButton1Click:Connect(function()
     showFruits = not showFruits
@@ -415,35 +406,42 @@ btnShowFruits.MouseButton1Click:Connect(function()
     if showFruits then
         btnShowFruits.Text = "Cacher Fruits"
         btnShowFruits.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        for _, fruit in pairs(Workspace:GetChildren()) do
-            if fruit:IsA("BasePart") and string.find(fruit.Name:lower(), "fruit") then
-                applyFruitESP(fruit)
+        -- Appliquer highlight à tous les fruits dans workspace (supposé fruits dans Workspace.Fruits)
+        local fruitsFolder = Workspace:FindFirstChild("Fruits")
+        if fruitsFolder then
+            for _, fruit in pairs(fruitsFolder:GetChildren()) do
+                applyFruitHighlight(fruit)
             end
+            fruitsFolder.ChildAdded:Connect(function(fruit)
+                if showFruits then
+                    applyFruitHighlight(fruit)
+                end
+            end)
+            fruitsFolder.ChildRemoved:Connect(function(fruit)
+                removeFruitHighlight(fruit)
+            end)
         end
     else
         btnShowFruits.Text = "Afficher Fruits"
         btnShowFruits.BackgroundColor3 = Color3.fromRGB(150, 50, 220)
-        clearAllFruitESP()
+        -- Retirer les highlights de tous les fruits
+        local fruitsFolder = Workspace:FindFirstChild("Fruits")
+        if fruitsFolder then
+            for _, fruit in pairs(fruitsFolder:GetChildren()) do
+                removeFruitHighlight(fruit)
+            end
+        end
     end
 end)
 
-Workspace.ChildAdded:Connect(function(child)
-    if showFruits and child:IsA("BasePart") and string.find(child.Name:lower(), "fruit") then
-        applyFruitESP(child)
+-- Lancer les updates dans RunService pour fly et noclip
+RunService.RenderStepped:Connect(function(dt)
+    if flying then
+        flyUpdate(dt)
     end
-end)
-
-Workspace.ChildRemoved:Connect(function(child)
-    if child:IsA("BasePart") and fruitHighlights[child] then
-        removeFruitESP(child)
+    if noclip then
+        noclipUpdate()
     end
-end)
-
--- Run loops
-
-RunService.Heartbeat:Connect(function(dt)
-    flyUpdate(dt)
-    noclipUpdate()
 end)
 
 
