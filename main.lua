@@ -14,7 +14,7 @@ local flySpeed = 500
 local acceleration = 30
 local deceleration = 40
 
-local velocity = Vector3.new(0,0,0)
+local velocityVector = Vector3.new(0, 0, 0)
 
 -- Sauvegarde de l’éclairage original
 local originalFogStart = Lighting.FogStart
@@ -40,14 +40,14 @@ end
 local function applyNoFogSettings()
     Lighting.FogStart = 0
     Lighting.FogEnd = 100000
-    Lighting.FogColor = Color3.fromRGB(255,255,255)
-    Lighting.Ambient = Color3.fromRGB(255,255,255)
+    Lighting.FogColor = Color3.fromRGB(255, 255, 255)
+    Lighting.Ambient = Color3.fromRGB(255, 255, 255)
     Lighting.Brightness = 1
     Lighting.ClockTime = 14
-    Lighting.ColorShift_Bottom = Color3.fromRGB(255,255,255)
-    Lighting.ColorShift_Top = Color3.fromRGB(255,255,255)
+    Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255)
+    Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
     Lighting.ExposureCompensation = 0
-    Lighting.OutdoorAmbient = Color3.fromRGB(255,255,255)
+    Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
     Lighting.GlobalShadows = true
 end
 
@@ -93,10 +93,10 @@ local function applyHighlightAndBillboard(plr)
     billboard.Parent = char
 
     local textLabel = Instance.new("TextLabel", billboard)
-    textLabel.Size = UDim2.new(1,0,1,0)
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
     textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    textLabel.TextStrokeColor3 = Color3.new(0,0,0)
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
     textLabel.TextStrokeTransparency = 0
     textLabel.Font = Enum.Font.GothamBold
     textLabel.TextSize = 18
@@ -121,14 +121,14 @@ screenGui.Name = "FlyNoclipFogUI"
 screenGui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", screenGui)
-frame.Size = UDim2.new(0, 230, 0, 310)
+frame.Size = UDim2.new(0, 230, 0, 320) -- hauteur augmentée pour la textbox
 frame.Position = UDim2.new(0, 15, 0, 15)
-frame.BackgroundColor3 = Color3.fromRGB(24,24,24)
+frame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-frame.ClipsDescendants = false -- <- corrigé ici
-frame.AnchorPoint = Vector2.new(0,0)
+frame.ClipsDescendants = false -- très important pour ne pas couper textbox
+frame.AnchorPoint = Vector2.new(0, 0)
 frame.Name = "MainFrame"
 frame.ZIndex = 10
 frame.AutomaticSize = Enum.AutomaticSize.None
@@ -152,7 +152,7 @@ local function createButton(parent, posY, text, color, textColor)
     uicorner.CornerRadius = UDim.new(0, 18)
 
     btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = btn.BackgroundColor3:Lerp(Color3.new(1,1,1), 0.15)
+        btn.BackgroundColor3 = btn.BackgroundColor3:Lerp(Color3.new(1, 1, 1), 0.15)
     end)
     btn.MouseLeave:Connect(function()
         btn.BackgroundColor3 = color
@@ -161,175 +161,234 @@ local function createButton(parent, posY, text, color, textColor)
     return btn
 end
 
-local btnFly = createButton(frame, 10, "Activer Fly", Color3.fromRGB(50, 220, 90), Color3.fromRGB(255,255,255))
-local btnNoclip = createButton(frame, 65, "Activer Noclip", Color3.fromRGB(50, 140, 220), Color3.fromRGB(255,255,255))
-local btnFog = createButton(frame, 120, "Enlever Brouillard", Color3.fromRGB(220, 220, 70), Color3.fromRGB(0,0,0))
-local btnShowPlayers = createButton(frame, 175, "Afficher Joueurs", Color3.fromRGB(220, 70, 70), Color3.fromRGB(255,255,255))
+local btnFly = createButton(frame, 10, "Activer Fly", Color3.fromRGB(50, 220, 90), Color3.fromRGB(255, 255, 255))
+local btnNoclip = createButton(frame, 65, "Activer Noclip", Color3.fromRGB(50, 140, 220), Color3.fromRGB(255, 255, 255))
+local btnFog = createButton(frame, 120, "Enlever Brouillard", Color3.fromRGB(220, 220, 70), Color3.fromRGB(0, 0, 0))
+local btnShowPlayers = createButton(frame, 175, "Afficher Joueurs", Color3.fromRGB(220, 70, 70), Color3.fromRGB(255, 255, 255))
 
--- Label vitesse fly
+-- Label vitesse fly (juste affichage)
 local speedLabel = Instance.new("TextLabel", frame)
 speedLabel.Size = UDim2.new(0.9, 0, 0, 30)
 speedLabel.Position = UDim2.new(0.05, 0, 0, 230)
 speedLabel.BackgroundTransparency = 1
-speedLabel.TextColor3 = Color3.fromRGB(255,255,255)
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 speedLabel.Font = Enum.Font.GothamBold
 speedLabel.TextSize = 18
 speedLabel.Text = "Vitesse Fly: " .. flySpeed
-speedLabel.ZIndex = 12 -- <- ajouté
+speedLabel.ZIndex = 15
 
--- TextBox vitesse fly
-local speedBox = Instance.new("TextBox", frame)
-speedBox.Size = UDim2.new(0.9, 0, 0, 40)
-speedBox.Position = UDim2.new(0.05, 0, 0, 265)
-speedBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
-speedBox.TextColor3 = Color3.fromRGB(255,255,255)
-speedBox.Font = Enum.Font.GothamBold
-speedBox.TextSize = 20
-speedBox.Text = tostring(flySpeed)
-speedBox.ClearTextOnFocus = false
-speedBox.PlaceholderText = "Entrer vitesse fly"
-speedBox.ZIndex = 12 -- <- ajouté
+-- TextBox pour modifier la vitesse fly
+local speedInput = Instance.new("TextBox", frame)
+speedInput.Size = UDim2.new(0.9, 0, 0, 30)
+speedInput.Position = UDim2.new(0.05, 0, 0, 265)
+speedInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+speedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedInput.Font = Enum.Font.GothamBold
+speedInput.TextSize = 18
+speedInput.PlaceholderText = "Entrer vitesse Fly (ex: 500)"
+speedInput.Text = tostring(flySpeed)
+speedInput.ClearTextOnFocus = false
+speedInput.ZIndex = 20
 
-local uicornerSpeedBox = Instance.new("UICorner", speedBox)
-uicornerSpeedBox.CornerRadius = UDim.new(0, 10)
-
-speedBox.FocusLost:Connect(function(enterPressed)
+speedInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
-        local newSpeed = tonumber(speedBox.Text)
-        if newSpeed and newSpeed > 0 then
-            flySpeed = newSpeed
+        local val = tonumber(speedInput.Text)
+        if val and val > 0 then
+            flySpeed = val
             speedLabel.Text = "Vitesse Fly: " .. flySpeed
         else
-            speedBox.Text = tostring(flySpeed)
+            speedInput.Text = tostring(flySpeed) -- reset si invalide
         end
     end
 end)
 
--- Connexions boutons
+-- Fonction Fly + Noclip
 
-btnFly.MouseButton1Click:Connect(function()
-    flying = not flying
-    btnFly.Text = flying and "Désactiver Fly" or "Activer Fly"
-    if not flying then
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Velocity = Vector3.new(0,0,0)
-                velocity = Vector3.new(0,0,0)
-            end
+local bodyVelocity = nil
+local runConnection = nil
+
+local function enableFly()
+    if flying then return end
+    flying = true
+    local character = player.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = hrp
+
+    local function updateVelocity()
+        if not flying then return end
+        local moveDirection = Vector3.new(0, 0, 0)
+
+        if UIS:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.LookVector
         end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.LookVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - workspace.CurrentCamera.CFrame.RightVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + workspace.CurrentCamera.CFrame.RightVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection = moveDirection - Vector3.new(0, 1, 0)
+        end
+
+        if moveDirection.Magnitude > 0 then
+            velocityVector = velocityVector:Lerp(moveDirection.Unit * flySpeed, acceleration * RunService.RenderStepped:Wait())
+        else
+            velocityVector = velocityVector:Lerp(Vector3.new(0, 0, 0), deceleration * RunService.RenderStepped:Wait())
+        end
+
+        bodyVelocity.Velocity = velocityVector
     end
-end)
 
-btnNoclip.MouseButton1Click:Connect(function()
-    noclip = not noclip
-    btnNoclip.Text = noclip and "Désactiver Noclip" or "Activer Noclip"
-end)
+    runConnection = RunService.RenderStepped:Connect(updateVelocity)
+end
 
-btnFog.MouseButton1Click:Connect(function()
-    fogOff = not fogOff
-    if fogOff then
-        applyNoFogSettings()
-        clearFogEffects()
-        btnFog.Text = "Remettre Brouillard"
+local function disableFly()
+    flying = false
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    if runConnection then
+        runConnection:Disconnect()
+        runConnection = nil
+    end
+    velocityVector = Vector3.new(0, 0, 0)
+end
+
+local function toggleFly()
+    if flying then
+        disableFly()
+        btnFly.Text = "Activer Fly"
+        btnFly.BackgroundColor3 = Color3.fromRGB(50, 220, 90)
     else
-        restoreOriginalLighting()
-        btnFog.Text = "Enlever Brouillard"
+        enableFly()
+        btnFly.Text = "Désactiver Fly"
+        btnFly.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
     end
-end)
+end
 
-btnShowPlayers.MouseButton1Click:Connect(function()
-    showPlayers = not showPlayers
-    btnShowPlayers.Text = showPlayers and "Cacher Joueurs" or "Afficher Joueurs"
+btnFly.MouseButton1Click:Connect(toggleFly)
 
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then
-            if showPlayers then
-                applyHighlightAndBillboard(plr)
-            else
+-- Noclip
+
+local function noclipLoop()
+    if not noclip then return end
+    local character = player.Character
+    if not character then return end
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") and part.CanCollide == true then
+            part.CanCollide = false
+        end
+    end
+end
+
+local noclipConnection = nil
+
+local function enableNoclip()
+    if noclip then return end
+    noclip = true
+    noclipConnection = RunService.Stepped:Connect(noclipLoop)
+end
+
+local function disableNoclip()
+    noclip = false
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    local character = player.Character
+    if not character then return end
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+
+local function toggleNoclip()
+    if noclip then
+        disableNoclip()
+        btnNoclip.Text = "Activer Noclip"
+        btnNoclip.BackgroundColor3 = Color3.fromRGB(50, 140, 220)
+    else
+        enableNoclip()
+        btnNoclip.Text = "Désactiver Noclip"
+        btnNoclip.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+    end
+end
+
+btnNoclip.MouseButton1Click:Connect(toggleNoclip)
+
+-- Fog toggle
+
+local function toggleFog()
+    if fogOff then
+        restoreOriginalLighting()
+        clearFogEffects()
+        fogOff = false
+        btnFog.Text = "Enlever Brouillard"
+        btnFog.BackgroundColor3 = Color3.fromRGB(220, 220, 70)
+    else
+        applyNoFogSettings()
+        fogOff = true
+        btnFog.Text = "Remettre Brouillard"
+        btnFog.BackgroundColor3 = Color3.fromRGB(180, 180, 30)
+    end
+end
+
+btnFog.MouseButton1Click:Connect(toggleFog)
+
+-- Show players toggle
+
+local function toggleShowPlayers()
+    if showPlayers then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player then
                 removeHighlightAndBillboard(plr)
             end
         end
-    end
-end)
-
--- Fly + Noclip Logic
-
-local function noclipLoop()
-    if noclip then
-        local char = player.Character
-        if char then
-            for _, part in pairs(char:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end
-end
-
-local function flyLoop(delta)
-    if flying then
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local cam = workspace.CurrentCamera
-                local moveDir = Vector3.new(0,0,0)
-                if UIS:IsKeyDown(Enum.KeyCode.W) then
-                    moveDir = moveDir + cam.CFrame.LookVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.S) then
-                    moveDir = moveDir - cam.CFrame.LookVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.A) then
-                    moveDir = moveDir - cam.CFrame.RightVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.D) then
-                    moveDir = moveDir + cam.CFrame.RightVector
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.Space) then
-                    moveDir = moveDir + Vector3.new(0,1,0)
-                end
-                if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-                    moveDir = moveDir - Vector3.new(0,1,0)
-                end
-
-                if moveDir.Magnitude > 0 then
-                    moveDir = moveDir.Unit
-                    velocity = velocity:Lerp(moveDir * flySpeed, acceleration * delta)
-                else
-                    velocity = velocity:Lerp(Vector3.new(0,0,0), deceleration * delta)
-                end
-
-                hrp.Velocity = velocity
-            end
-        end
+        showPlayers = false
+        btnShowPlayers.Text = "Afficher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
     else
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Velocity = Vector3.new(0,0,0)
-            end
-        end
-    end
-end
-
-RunService.Stepped:Connect(function(time, delta)
-    noclipLoop()
-    flyLoop(delta)
-end)
-
--- Nettoyer au respawn
-player.CharacterAdded:Connect(function()
-    wait(1)
-    if showPlayers then
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player then
                 applyHighlightAndBillboard(plr)
             end
         end
+        showPlayers = true
+        btnShowPlayers.Text = "Cacher Joueurs"
+        btnShowPlayers.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    end
+end
+
+btnShowPlayers.MouseButton1Click:Connect(toggleShowPlayers)
+
+-- Nettoyage lors du respawn
+player.CharacterAdded:Connect(function()
+    if flying then disableFly() end
+    if noclip then disableNoclip() end
+    if fogOff then
+        restoreOriginalLighting()
+        fogOff = false
+    end
+    if showPlayers then
+        for _, plr in pairs(Players:GetPlayers()) do
+            removeHighlightAndBillboard(plr)
+        end
+        showPlayers = false
     end
 end)
